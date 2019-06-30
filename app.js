@@ -14,6 +14,26 @@ const app = express();
 
 app.use(bodyParser.json());
 
+const events = eventIds => {
+    return Event.find({_id: {$in: eventIds}})
+    .then(events =>{
+        return events.map(event =>{
+            return { ...event._doc, id: event.id, creator: user.bind(this, event.creator)}
+        })
+    }).catch(err => {
+
+    })
+}
+
+const user = userId => {
+    return User.findById(userId)
+    .then(user =>{
+        return {...user.doc, _id: user.id, createdEvents: events.bind(this, user._doc.createdEvents) }
+    }).catch(err =>{
+
+    })
+}
+
 app.use('/graphql', graphqlHttp({
     schema: buildSchema(`
         type Event {
@@ -22,12 +42,14 @@ app.use('/graphql', graphqlHttp({
             description: String!
             price: Float!
             date: String!
+            creator: User!
         }
 
         type User {
             _id: ID!
             email: String!
             password: String
+            createdEvents: [Event!]
         }
 
         input EventInput {
@@ -58,9 +80,13 @@ app.use('/graphql', graphqlHttp({
     `),
     rootValue: {
         events: () => {
-           return Event.find.then(events =>{
+           return Event.find().then(events =>{
                     return events.map(event =>{
-                        return {...event._doc, _id: event._doc.id.toString()}
+                        return {
+                            ...event._doc,
+                            _id: event._doc.id,
+                            creator: user.bind(this, event._doc.creator)
+                        }
                     })
                 }
             ).catch(err => {
@@ -86,7 +112,7 @@ app.use('/graphql', graphqlHttp({
         },
         createrUser: args => {
             return User.findOne({email: args.userInput.email}).then(user =>{
-                if (user) {
+                if (!user) {
                     throw new Error('User exists already.')
                 }
                 return bcrypt.hash(args.userInput.password, 12)
